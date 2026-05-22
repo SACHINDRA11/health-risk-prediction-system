@@ -57,63 +57,65 @@ ane = st.selectbox("Anemia", ["yes", "no"])
 # =========================================================
 # CKD PREDICTION
 # =========================================================
+# =========================================================
+# CKD PREDICTION
+# =========================================================
 if st.button("Predict CKD"):
 
-    ckd_df = pd.DataFrame({
-        'age': [age_ckd],
-        'bp': [bp],
-        'sg': [sg],
-        'al': [al],
-        'su': [su],
-        'bgr': [bgr],
-        'bu': [bu],
-        'sc': [sc],
-        'sod': [sod],
-        'pot': [pot],
-        'hemo': [hemo],
-        'pcv': [pcv],
-        'wc': [wc],
-        'rc': [rc],
-        'rbc': [rbc],
-        'pc': [pc],
-        'pcc': [pcc],
-        'ba': [ba],
-        'htn': [htn],
-        'dm': [dm],
-        'cad': [cad],
-        'appet': [appet],
-        'pe': [pe],
-        'ane': [ane]
-    })
+    ckd_data = {
+        'age': age_ckd,
+        'bp': bp,
+        'sg': sg,
+        'al': al,
+        'su': su,
+        'bgr': bgr,
+        'bu': bu,
+        'sc': sc,
+        'sod': sod,
+        'pot': pot,
+        'hemo': hemo,
+        'pcv': pcv,
+        'wc': wc,
+        'rc': rc,
+        'rbc': rbc,
+        'pc': pc,
+        'pcc': pcc,
+        'ba': ba,
+        'htn': htn,
+        'dm': dm,
+        'cad': cad,
+        'appet': appet,
+        'pe': pe,
+        'ane': ane
+    }
 
-    # =========================================
-    # FIX DEPLOYMENT COLUMN ISSUE
-    # =========================================
-    expected_cols = ckd_model.feature_names_in_
+    ckd_df = pd.DataFrame([ckd_data])
 
-    # add missing columns
-    for col in expected_cols:
-        if col not in ckd_df.columns:
-            ckd_df[col] = 0
+    try:
 
-    # keep exact order
-    ckd_df = ckd_df[expected_cols]
-
-    # prediction
-    prob = float(ckd_model.predict_proba(ckd_df)[0][1])
-
-    st.subheader("CKD Prediction")
-
-    st.write(f"CKD Probability: {prob:.2f}")
-
-    if prob >= 0.50:
-        st.error(
-            f"⚠️ YES - CKD Detected ({prob:.2%})"
+        prob = float(
+            ckd_model.predict_proba(ckd_df)[0][1]
         )
-    else:
-        st.success(
-            f"✅ NO - CKD Not Detected ({(1-prob):.2%} confidence)"
-        )
+
+        st.subheader("CKD Prediction")
+
+        st.write(f"CKD Probability: {prob:.2f}")
+
+        if prob >= 0.50:
+            st.error(
+                f"⚠️ YES - CKD Detected ({prob:.2%})"
+            )
+
+        else:
+            st.success(
+                f"✅ NO - CKD Not Detected ({(1-prob):.2%} confidence)"
+            )
+
+    except Exception as e:
+
+        st.error("CKD Prediction Error")
+
+        st.code(str(e))
 
 # =========================================================
 # ICU SECTION
