@@ -3,20 +3,32 @@ import joblib
 import pandas as pd
 
 # =========================================
+# PAGE CONFIG
+# =========================================
+st.set_page_config(
+    page_title="Health Risk Prediction System",
+    page_icon="🏥",
+    layout="centered"
+)
+
+st.title("🏥 Health Risk Prediction System")
+
+# =========================================
 # LOAD MODELS
 # =========================================
+ckd_working = False
 
 try:
     ckd_model = joblib.load("ckd_model_rf.joblib")
     ckd_working = True
+except Exception as e:
+    st.warning(f"CKD model not loaded: {e}")
 
-except:
-    ckd_working = False
-
-icu_model = joblib.load("icu_model.joblib")
-feature_names = joblib.load("feature_names.joblib")
-
-st.title("🏥 Health Risk Prediction System")
+try:
+    icu_model = joblib.load("icu_model.joblib")
+    feature_names = joblib.load("feature_names.joblib")
+except Exception as e:
+    st.error(f"ICU model loading failed: {e}")
 
 # =========================================================
 # CKD SECTION
@@ -58,65 +70,70 @@ ane = st.selectbox("Anemia", ["yes", "no"])
 # =========================================================
 # CKD PREDICTION
 # =========================================================
-# =========================================================
-# CKD PREDICTION
-# =========================================================
 if st.button("Predict CKD"):
 
-    ckd_data = {
-        'age': age_ckd,
-        'bp': bp,
-        'sg': sg,
-        'al': al,
-        'su': su,
-        'bgr': bgr,
-        'bu': bu,
-        'sc': sc,
-        'sod': sod,
-        'pot': pot,
-        'hemo': hemo,
-        'pcv': pcv,
-        'wc': wc,
-        'rc': rc,
-        'rbc': rbc,
-        'pc': pc,
-        'pcc': pcc,
-        'ba': ba,
-        'htn': htn,
-        'dm': dm,
-        'cad': cad,
-        'appet': appet,
-        'pe': pe,
-        'ane': ane
-    }
+    if not ckd_working:
+        st.error("CKD model not available.")
+    else:
 
-    ckd_df = pd.DataFrame([ckd_data])
+        ckd_data = {
+            'age': age_ckd,
+            'bp': bp,
+            'sg': sg,
+            'al': al,
+            'su': su,
+            'bgr': bgr,
+            'bu': bu,
+            'sc': sc,
+            'sod': sod,
+            'pot': pot,
+            'hemo': hemo,
+            'pcv': pcv,
+            'wc': wc,
+            'rc': rc,
+            'rbc': rbc,
+            'pc': pc,
+            'pcc': pcc,
+            'ba': ba,
+            'htn': htn,
+            'dm': dm,
+            'cad': cad,
+            'appet': appet,
+            'pe': pe,
+            'ane': ane
+        }
 
-    try:
+        ckd_df = pd.DataFrame([ckd_data])
 
-        prob = float(
-            ckd_model.predict_proba(ckd_df)[0][1]
-        )
+        try:
 
-        st.subheader("CKD Prediction")
+            # IMPORTANT FIX
+            model_columns = ckd_model.feature_names_in_
+            ckd_df = ckd_df.reindex(columns=model_columns)
 
-        st.write(f"CKD Probability: {prob:.2f}")
-
-        if prob >= 0.50:
-            st.error(
-                f"⚠️ YES - CKD Detected ({prob:.2%})"
+            prob = float(
+                ckd_model.predict_proba(ckd_df)[0][1]
             )
 
-        else:
-            st.success(
-                f"✅ NO - CKD Not Detected ({(1-prob):.2%} confidence)"
-            )
+            st.subheader("CKD Prediction")
 
-    except Exception as e:
+            st.write(f"CKD Probability: {prob:.2f}")
 
-        st.error("CKD Prediction Error")
+            if prob >= 0.50:
+                st.error(
+                    f"⚠️ YES - CKD Detected ({prob:.2%})"
+                )
 
-        st.code(str(e))
+            else:
+                st.success(
+                    f"✅ NO - CKD Not Detected ({(1-prob):.2%} confidence)"
+                )
+
+        except Exception as e:
+
+            st.error("CKD Prediction Error")
+
+            st.code(str(e))
 
 # =========================================================
 # ICU SECTION
@@ -272,9 +289,6 @@ if st.button("Predict Mortality"):
         "ICUType": icutype
     }])
 
-    # =========================================
-    # PREPROCESSING
-    # =========================================
     processed = pd.get_dummies(raw, drop_first=True)
 
     processed = processed.reindex(
@@ -282,16 +296,10 @@ if st.button("Predict Mortality"):
         fill_value=0
     )
 
-    # =========================================
-    # BASE ICU MODEL
-    # =========================================
     death_prob = float(
         icu_model.predict_proba(processed)[0][1]
     )
 
-    # =========================================
-    # CKD RISK ANALYSIS
-    # =========================================
     ckd_score = 0
 
     if urine < 500:
@@ -309,11 +317,6 @@ if st.button("Predict Mortality"):
     if map_val < 60:
         ckd_score += 1
 
-    # =========================================
-    # MEDICAL RISK BOOSTING
-    # =========================================
-
-    # severe indicators
     if gcs <= 8:
         death_prob += 0.20
 
@@ -329,29 +332,21 @@ if st.button("Predict Mortality"):
     if age > 70:
         death_prob += 0.10
 
-    # CKD impact
     if ckd_score >= 3:
         death_prob += 0.25
 
     elif ckd_score == 2:
         death_prob += 0.15
 
-    # cap
     death_prob = min(death_prob, 0.99)
 
     survival_prob = 1 - death_prob
 
-    # =========================================
-    # OUTPUT
-    # =========================================
     st.subheader("Prediction")
 
     st.write(f"Death Probability: {death_prob:.2f}")
     st.write(f"Survival Probability: {survival_prob:.2f}")
 
-    # =========================================
-    # CKD MESSAGE
-    # =========================================
     if ckd_score >= 3:
         st.warning(
             "⚠️ Likely CKD Patient Based on ICU Biomarkers"
@@ -367,9 +362,6 @@ if st.button("Predict Mortality"):
             "✅ Not Likely CKD Patient"
         )
 
-    # =========================================
-    # FINAL ICU RESULT
-    # =========================================
     if death_prob >= 0.50:
         st.error(
             f"⚠️ HIGH RISK OF DEATH ({death_prob:.2%})"
