@@ -9,6 +9,12 @@ ckd_model = joblib.load("ckd_model_rf.joblib")
 icu_model = joblib.load("icu_model.joblib")
 feature_names = joblib.load("feature_names.joblib")
 
+st.set_page_config(
+    page_title="Health Risk Prediction System",
+    page_icon="🏥",
+    layout="centered"
+)
+
 st.title("🏥 Health Risk Prediction System")
 
 # =========================================================
@@ -48,47 +54,66 @@ appet = st.selectbox("Appetite", ["good", "poor"])
 pe = st.selectbox("Pedal Edema", ["yes", "no"])
 ane = st.selectbox("Anemia", ["yes", "no"])
 
+# =========================================================
+# CKD PREDICTION
+# =========================================================
 if st.button("Predict CKD"):
 
     ckd_df = pd.DataFrame({
-        'age':[age_ckd],
-        'bp':[bp],
-        'sg':[sg],
-        'al':[al],
-        'su':[su],
-        'bgr':[bgr],
-        'bu':[bu],
-        'sc':[sc],
-        'sod':[sod],
-        'pot':[pot],
-        'hemo':[hemo],
-        'pcv':[pcv],
-        'wc':[wc],
-        'rc':[rc],
-        'rbc':[rbc],
-        'pc':[pc],
-        'pcc':[pcc],
-        'ba':[ba],
-        'htn':[htn],
-        'dm':[dm],
-        'cad':[cad],
-        'appet':[appet],
-        'pe':[pe],
-        'ane':[ane]
+        'age': [age_ckd],
+        'bp': [bp],
+        'sg': [sg],
+        'al': [al],
+        'su': [su],
+        'bgr': [bgr],
+        'bu': [bu],
+        'sc': [sc],
+        'sod': [sod],
+        'pot': [pot],
+        'hemo': [hemo],
+        'pcv': [pcv],
+        'wc': [wc],
+        'rc': [rc],
+        'rbc': [rbc],
+        'pc': [pc],
+        'pcc': [pcc],
+        'ba': [ba],
+        'htn': [htn],
+        'dm': [dm],
+        'cad': [cad],
+        'appet': [appet],
+        'pe': [pe],
+        'ane': [ane]
     })
 
+    # =========================================
+    # FIX DEPLOYMENT COLUMN ISSUE
+    # =========================================
+    expected_cols = ckd_model.feature_names_in_
+
+    # add missing columns
+    for col in expected_cols:
+        if col not in ckd_df.columns:
+            ckd_df[col] = 0
+
+    # keep exact order
+    ckd_df = ckd_df[expected_cols]
+
+    # prediction
     prob = float(ckd_model.predict_proba(ckd_df)[0][1])
 
     st.subheader("CKD Prediction")
 
     st.write(f"CKD Probability: {prob:.2f}")
 
-    # 🔥 NEW LOGIC
     if prob >= 0.50:
-        st.error(f"⚠️ YES - CKD Detected ({prob:.2%})")
+        st.error(
+            f"⚠️ YES - CKD Detected ({prob:.2%})"
+        )
     else:
-        st.success(f"✅ NO - CKD Not Detected ({(1-prob):.2%} confidence)")
-
+        st.success(
+            f"✅ NO - CKD Not Detected ({(1-prob):.2%} confidence)"
+        )
 
 # =========================================================
 # ICU SECTION
@@ -219,7 +244,7 @@ icutype = st.selectbox(
 )
 
 # =========================================================
-# PREDICT ICU
+# ICU PREDICTION
 # =========================================================
 if st.button("Predict Mortality"):
 
@@ -244,22 +269,25 @@ if st.button("Predict Mortality"):
         "ICUType": icutype
     }])
 
-    # preprocessing
+    # =========================================
+    # PREPROCESSING
+    # =========================================
     processed = pd.get_dummies(raw, drop_first=True)
+
     processed = processed.reindex(
         columns=feature_names,
         fill_value=0
     )
 
     # =========================================
-    # ICU MODEL PREDICTION
+    # BASE ICU MODEL
     # =========================================
     death_prob = float(
         icu_model.predict_proba(processed)[0][1]
     )
 
     # =========================================
-    # 🔥 CKD RISK ANALYSIS INSIDE ICU
+    # CKD RISK ANALYSIS
     # =========================================
     ckd_score = 0
 
@@ -272,7 +300,6 @@ if st.button("Predict Mortality"):
     if k > 5:
         ckd_score += 1
 
-    # extra strong indicators
     if age > 65:
         ckd_score += 1
 
@@ -280,15 +307,33 @@ if st.button("Predict Mortality"):
         ckd_score += 1
 
     # =========================================
-    # CKD IMPACT ON MORTALITY
+    # MEDICAL RISK BOOSTING
     # =========================================
+
+    # severe indicators
+    if gcs <= 8:
+        death_prob += 0.20
+
+    if pao2 < 60:
+        death_prob += 0.15
+
+    if ph < 7.2:
+        death_prob += 0.15
+
+    if map_val < 60:
+        death_prob += 0.10
+
+    if age > 70:
+        death_prob += 0.10
+
+    # CKD impact
     if ckd_score >= 3:
         death_prob += 0.25
 
     elif ckd_score == 2:
         death_prob += 0.15
 
-    # limit
+    # cap
     death_prob = min(death_prob, 0.99)
 
     survival_prob = 1 - death_prob
@@ -302,7 +347,7 @@ if st.button("Predict Mortality"):
     st.write(f"Survival Probability: {survival_prob:.2f}")
 
     # =========================================
-    # CKD RISK MESSAGE
+    # CKD MESSAGE
     # =========================================
     if ckd_score >= 3:
         st.warning(
@@ -326,7 +371,6 @@ if st.button("Predict Mortality"):
         st.error(
             f"⚠️ HIGH RISK OF DEATH ({death_prob:.2%})"
         )
-
     else:
         st.success(
             f"✅ LIKELY SURVIVAL ({survival_prob:.2%})"
