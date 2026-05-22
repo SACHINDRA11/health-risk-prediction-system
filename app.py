@@ -5,15 +5,16 @@ import pandas as pd
 # =========================================
 # LOAD MODELS
 # =========================================
-ckd_model = joblib.load("ckd_model_rf.joblib")
+
+try:
+    ckd_model = joblib.load("ckd_model_rf.joblib")
+    ckd_working = True
+
+except:
+    ckd_working = False
+
 icu_model = joblib.load("icu_model.joblib")
 feature_names = joblib.load("feature_names.joblib")
-
-st.set_page_config(
-    page_title="Health Risk Prediction System",
-    page_icon="🏥",
-    layout="centered"
-)
 
 st.title("🏥 Health Risk Prediction System")
 
